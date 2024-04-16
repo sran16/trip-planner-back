@@ -1,6 +1,9 @@
 import express from "express";
 import createError from "http-errors";
+import dotenv from "dotenv";
+import fetch from "node-fetch";
 import { PrismaClient } from "@prisma/client";
+dotenv.config();
 
 import PlannersValidator from "../../validators/PlannersValidator.js";
 import { string } from "zod";
@@ -8,45 +11,71 @@ import { string } from "zod";
 const router = express.Router();
 router.use(express.urlencoded({ extended: true }));
 const prisma = new PrismaClient();
-
-
-// appeler l api de mistral depuis le back
-
-// router.post("/", async (req, res) => {
-//   const response = await fetch(
-//     `https://api.mistral.ai/v1/chat/completions/${apiKey}`,
-//     {
-//       method: "POST",
-//       headers: {
-//         Authorization: `Bearer ${apiKey}`,
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify(req.body),
-//     }
-//   );
-// });
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
+const prePrompt =
+  "Tu es un planificateur de voyage, expert en tourisme. Pour la destination, le nombre de jours et le moyen de locomotion que je te donnerai à la fin du message, programme moi un itinéraire en plusieurs étapes Format de données souhaité: un JSON Avec, pour chaque étape: - le nom du lieu (clef JSON: name) -sa position géographique (clef JSON: location-> avec latitude/longitude en numérique) - une courte description (clef JSON: description) Donne-moi juste cette liste d'étape, sans texte autour.";
 
 // Création d'un prompt
 
 router.post("/", async (req, res) => {
-  let planners;
-
-  try {
-    planners = PlannersValidator.parse(req.body);
-  } catch (error) {
-    return res.status(400).json({ errors: error.issues });
+  const { prompt } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: 'The field "prompt" is required.' });
   }
 
-  const entry = await prisma.planners.create({
+  try {
+    const mistralResponse = await fetch(
+      "https://api.mistral.ai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${MISTRAL_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "open-mixtral-8x7b",
+          messages: [{ role: "user", content: prePrompt + " " + prompt }],
+        }),
+      }
+    );
+
+    const mistralData = await mistralResponse.json();
+
+    const planner = await prisma.planners.create({
+      data: {
+        prompt,
+        itinerary: JSON.stringify(mistralData.choices[0].message.content),
+      },
+    });
+
+    res.status(200).json(planner);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({});
+  }
+});
+
+// Modification d'un prompt
+
+router.patch("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { prompt } = req.body;
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'The field "prompt" is required.' });
+  }
+
+  const planner = await prisma.planners.update({
+    where: {
+      id: String(id),
+    },
     data: {
-      prompt: planners.prompt,
-      itinerary: planners.itinerary,
-      createdAt: planners.createdAt,
-      updatedAt: planners.updatedAt,
+      prompt,
     },
   });
 
-  res.json(entry);
+  res.json(planner);
 });
 
 // Récupération des prompts
@@ -67,30 +96,6 @@ router.get("/:id", async (req, res) => {
   if (!entry) {
     throw createError(404, "Planner not found");
   }
-
-  res.json(entry);
-});
-
-// Modification d'un prompt
-
-router.patch("/:id", async (req, res) => {
-  let planners;
-
-  try {
-    planners = PlannersValidator.parse(req.body);
-  } catch (error) {
-    return res.status(400).json({ errors: error.issues });
-  }
-
-  const entry = await prisma.planners.update({
-    where: {
-      id: String(req.params.id),
-    },
-    data: {
-      prompt: planners.prompt,
-      itinerary: planners.itinerary,
-    },
-  });
 
   res.json(entry);
 });
