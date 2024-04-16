@@ -1,6 +1,7 @@
 import express from "express";
 import createError from "http-errors";
 import { PrismaClient } from "@prisma/client";
+
 import PlannersValidator from "../../validators/PlannersValidator.js";
 import { string } from "zod";
 
@@ -8,7 +9,24 @@ const router = express.Router();
 router.use(express.urlencoded({ extended: true }));
 const prisma = new PrismaClient();
 
-// Création de prompt
+
+// appeler l api de mistral depuis le back
+
+// router.post("/", async (req, res) => {
+//   const response = await fetch(
+//     `https://api.mistral.ai/v1/chat/completions/${apiKey}`,
+//     {
+//       method: "POST",
+//       headers: {
+//         Authorization: `Bearer ${apiKey}`,
+//         "Content-Type": "application/json",
+//       },
+//       body: JSON.stringify(req.body),
+//     }
+//   );
+// });
+
+// Création d'un prompt
 
 router.post("/", async (req, res) => {
   let planners;
@@ -75,7 +93,6 @@ router.patch("/:id", async (req, res) => {
   });
 
   res.json(entry);
-});   
-
+});
 
 export default router;
