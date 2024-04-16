@@ -2,6 +2,7 @@ import express from "express";
 import createError from "http-errors";
 import { PrismaClient } from "@prisma/client";
 import PlannersValidator from "../../validators/PlannersValidator.js";
+import { string } from "zod";
 
 const router = express.Router();
 router.use(express.urlencoded({ extended: true }));
@@ -30,11 +31,51 @@ router.post("/", async (req, res) => {
   res.json(entry);
 });
 
-// Récupération de prompt
+// Récupération des prompts
 
-router.get("/planners", async (req, res) => {
+router.get("/", async (req, res) => {
   const entries = await prisma.planners.findMany();
   res.json(entries);
 });
+
+// Récupération d'un prompt
+router.get("/:id", async (req, res) => {
+  const entry = await prisma.planners.findUnique({
+    where: {
+      id: String(req.params.id),
+    },
+  });
+
+  if (!entry) {
+    throw createError(404, "Planner not found");
+  }
+
+  res.json(entry);
+});
+
+// Modification d'un prompt
+
+router.patch("/:id", async (req, res) => {
+  let planners;
+
+  try {
+    planners = PlannersValidator.parse(req.body);
+  } catch (error) {
+    return res.status(400).json({ errors: error.issues });
+  }
+
+  const entry = await prisma.planners.update({
+    where: {
+      id: String(req.params.id),
+    },
+    data: {
+      prompt: planners.prompt,
+      itinerary: planners.itinerary,
+    },
+  });
+
+  res.json(entry);
+});   
+
 
 export default router;
