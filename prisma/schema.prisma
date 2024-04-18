@@ -16,7 +16,7 @@ datasource db {
 model Planners {
   id  String       @id @default(uuid())
   prompt String @db.Text 
-  itinerary String @db.Text
+  itinerary Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

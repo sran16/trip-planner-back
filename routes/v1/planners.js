@@ -13,8 +13,7 @@ router.use(express.urlencoded({ extended: true }));
 const prisma = new PrismaClient();
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
 const prePrompt =
-  "Tu es un planificateur de voyage, expert en tourisme. Pour la destination, le nombre de jours et le moyen de locomotion que je te donnerai à la fin du message, programme moi un itinéraire en plusieurs étapes Format de données souhaité: un JSON Avec, pour chaque étape: - le nom du lieu (clef JSON: name) -sa position géographique (clef JSON: location-> avec latitude/longitude en numérique) - une courte description (clef JSON: description) Donne-moi juste cette liste d'étape, sans texte autour.";
-
+  "Tu es un planificateur de voyage, expert en tourisme. Pour la destination, le nombre de jours et le moyen de locomotion que je te donnerai à la fin du message, programme moi un itinéraire en plusieurs étapes Format de données souhaité: une liste d’élement en JSON Avec, pour chaque étape: - le nom du lieu (clef JSON: name) -sa position géographique (clef JSON: location-> avec latitude/longitude en numérique) - une courte description du lieu (clef JSON: description) Donne-moi juste cette liste d’étape, sans texte autour. Il ne faut vraiment AUCUN texte autour en dehors du JSON, il faut impérativement que le JSON soit bien formé et valide sans rien autour sinon le modèle ne pourra pas le lire.";
 // Création d'un prompt
 
 router.post("/", async (req, res) => {
@@ -34,18 +33,19 @@ router.post("/", async (req, res) => {
           Authorization: `Bearer ${MISTRAL_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "open-mixtral-8x7b",
+          model: "mistral-small-latest",
           messages: [{ role: "user", content: prePrompt + " " + prompt }],
         }),
       }
     );
 
     const mistralData = await mistralResponse.json();
+    console.log(mistralData.choices[0].message.content);
 
     const planner = await prisma.planners.create({
       data: {
         prompt,
-        itinerary: JSON.stringify(mistralData.choices[0].message.content),
+        itinerary: JSON.parse(mistralData.choices[0].message.content),
       },
     });
 
